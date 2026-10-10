@@ -1,0 +1,39 @@
+groups:
+  - name: teatime-alerts
+    rules:
+      - alert: ServiceDown
+        expr: up{job="sample-app"} == 0
+        for: 15s
+        labels:
+          severity: critical
+          service: sample-app
+        annotations:
+          summary: "Sample App is DOWN"
+          description: "sample-app unreachable for 15 seconds."
+
+      - alert: HighErrorRate
+        expr: |
+          (
+            rate(http_requests_total{job="sample-app", status="500"}[1m])
+            /
+            rate(http_requests_total{job="sample-app"}[1m])
+          ) > 0.1
+        for: 30s
+        labels:
+          severity: warning
+          service: sample-app
+        annotations:
+          summary: "High error rate on Sample App"
+          description: "More than 10 percent of requests returning 500."
+
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95,
+            rate(http_request_duration_seconds_bucket{job="sample-app"}[5m])
+          ) > 1
+        for: 1m
+        labels:
+          severity: warning
+          service: sample-app
+        annotations:
+          summary: "P95 latency exceeds 1 second"

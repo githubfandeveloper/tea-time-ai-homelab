@@ -1,0 +1,197 @@
+# ═══════════════════════════════════════════════════════════════
+# 🍵 Tea Time AI Home Lab — Podman Compose File
+# ═══════════════════════════════════════════════════════════════
+# Run with:  podman-compose up -d --build
+# Stop with: podman-compose down
+# ═══════════════════════════════════════════════════════════════
+
+version: "3.8"
+
+services:
+  # ─────────────────────────────────────────────────────────────
+  # SIGNAL 1: "What's Broken" (replaces Dynatrace)
+  # In the enterprise plan, Dynatrace tells you what's failing.
+  # Here, Prometheus detects and Alertmanager routes alerts.
+  # ─────────────────────────────────────────────────────────────
+
+  prometheus:
+    image: docker.io/prom/prometheus:latest
+    container_name: teatime-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:Z
+      - ./prometheus/alert-rules.yml:/etc/prometheus/alert-rules.yml:Z
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--web.enable-lifecycle"
+    restart: unless-stopped
+    networks:
+      - teatime-net
+
+  alertmanager:
+    image: docker.io/prom/alertmanager:latest
+    container_name: teatime-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/config.yml:/etc/alertmanager/alertmanager.yml:Z
+    restart: unless-stopped
+    networks:
+      - teatime-net
+
+  grafana:
+    image: docker.io/grafana/grafana:latest
+    container_name: teatime-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:Z
+    depends_on:
+      - prometheus
+      - loki
+    restart: unless-stopped
+    networks:
+      - teatime-net
+
+  # ─────────────────────────────────────────────────────────────
+  # SIGNAL 2: "What Happened" (replaces Splunk)
+  # In the enterprise plan, Splunk tells you what happened.
+  # Here, Loki stores and queries log data.
+  # ─────────────────────────────────────────────────────────────
+
+  loki:
+    image: docker.io/grafana/loki:latest
+    container_name: teatime-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - ./loki/local-config.yml:/etc/loki/local-config.yaml:Z
+    command: -config.file=/etc/loki/local-config.yaml
+    restart: unless-stopped
+    networks:
+      - teatime-net
+
+  # ─────────────────────────────────────────────────────────────
+  # SIGNAL 3: "What Changed" (replaces GitLab)
+  # In the enterprise plan, GitLab tells you what changed —
+  # since many incidents originate from a code deployment,
+  # config change, container update, or dependency upgrade.
+  # ─────────────────────────────────────────────────────────────
+
+  gitea:
+    image: docker.io/gitea/gitea:latest
+    container_name: teatime-gitea
+    ports:
+      - "3001:3000"
+      - "2222:22"
+    volumes:
+      - gitea_data:/data:Z
+    environment:
+      - GITEA__database__DB_TYPE=sqlite3
+    restart: unless-stopped
+    networks:
+      - teatime-net
+
+  # ─────────────────────────────────────────────────────────────
+  # SIGNAL 4: "How Ops Should Respond" (replaces ServiceNow)
+  # In the enterprise plan, ServiceNow tells you what the
+  # organization knows, owns, and is supposed to do about it.
+  # ─────────────────────────────────────────────────────────────
+
+  mock-itsm:
+    build:
+      context: ./mock_itsm
+    container_name: teatime-mock-itsm
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    networks:
+      - teatime-net
+
+  # ─────────────────────────────────────────────────────────────
+  # SIGNAL 5: "What the Org Already Knows" (replaces Confluence)
+  # In the enterprise plan, Confluence exposes the organization's
+  # knowledge layer — postmortems, architecture docs, runbooks.
+  # ─────────────────────────────────────────────────────────────
+
+  wikijs:
+    image: ghcr.io/requarks/wiki:2
+    container_name: teatime-wikijs
+    ports:
+      - "3002:3000"
+    environment:
+      - DB_TYPE=sqlite
+    volumes:
+      - wikijs_data:/wiki/data/content:Z
+    restart: unless-stopped
+    networks:
+      - teatime-net
+
+  # ─────────────────────────────────────────────────────────────
+  # AI BRAIN (replaces Resolve.ai)
+  # In the enterprise plan, Resolve.ai continuously listens to
+  # alerts, correlates signals across all tools, and orchestrates
+  # automated investigation and remediation.
+  # ─────────────────────────────────────────────────────────────
+
+  ollama:
+    image: docker.io/ollama/ollama:latest
+    container_name: teatime-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_models:/root/.ollama:Z
+    restart: unless-stopped
+    networks:
+      - teatime-net
+
+  ai-agent:
+    build:
+      context: ./ai_agent
+    container_name: teatime-ai-agent
+    ports:
+      - "8080:8080"
+    environment:
+      - OLLAMA_HOST=http://ollama:11434
+      - PROMETHEUS_URL=http://prometheus:9090
+      - LOKI_URL=http://loki:3100
+      - GITEA_URL=http://gitea:3000
+      - ITSM_URL=http://mock-itsm:8000
+      - WIKI_URL=http://wikijs:3000
+    depends_on:
+      - prometheus
+      - loki
+      - gitea
+      - mock-itsm
+      - wikijs
+      - ollama
+    restart: unless-stopped
+    networks:
+      - teatime-net
+
+  # ─────────────────────────────────────────────────────────────
+  # SAMPLE APP (the application you'll intentionally break)
+  # ─────────────────────────────────────────────────────────────
+
+  sample-app:
+    build:
+      context: ./sample_app
+    container_name: teatime-sample-app
+    ports:
+      - "5000:5000"
+    restart: unless-stopped
+    networks:
+      - teatime-net
+
+volumes:
+  gitea_data:
+  wikijs_data:
+  ollama_models:
+
+networks:
+  teatime-net:
+    driver: bridge

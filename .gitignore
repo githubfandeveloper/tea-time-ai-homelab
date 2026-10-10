@@ -1,0 +1,35 @@
+# 🍵 Tea Time AI Home Lab — .gitignore
+
+# OS files
+.DS_Store
+Thumbs.db
+*.swp
+
+# IDE settings
+.vscode/settings.json
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+venv/
+.venv/
+
+# Podman / Container data
+data/
+*.service
+
+# Large files (not for GitHub)
+ollama/models/
+grafana/data/
+prometheus/data/
+loki/data/
+
+# Secrets
+*.key
+*.pem
+*.secret
+secrets/
+.env.local

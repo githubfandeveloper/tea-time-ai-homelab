@@ -1,0 +1,15 @@
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: 'teatime-ai-webhook'
+  group_by: ['alertname', 'severity']
+  group_wait: 10s
+  group_interval: 30s
+  repeat_interval: 1h
+
+receivers:
+  - name: 'teatime-ai-webhook'
+    webhook_configs:
+      - url: 'http://ai-agent:8080/alert'
+        send_resolved: true
